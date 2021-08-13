@@ -1,4 +1,5 @@
-V210604
+#V210806
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,12 +25,12 @@ def GetEventPaths(Path):
 def ReadData(Path, EventName, FileNo, ObjNo=None):
     
     PathsDict = GetEventPaths(Path)
-    SubPaths = PathsDict[EventName]
+    SubPath = PathsDict[EventName]
     
-    FileNames = os.listdir(SubPaths)
+    FileNames = os.listdir(SubPath)
     FileNames.sort()
     
-    Data = read_snana_fits(os.path.join(SubPaths,FileNames[FileNo*2]),os.path.join(SubPaths,FileNames[FileNo*2+1]))
+    Data = read_snana_fits(os.path.join(SubPath,FileNames[FileNo*2]),os.path.join(SubPath,FileNames[FileNo*2+1]))
     
     if ObjNo == None:
         return Data
@@ -38,7 +39,7 @@ def ReadData(Path, EventName, FileNo, ObjNo=None):
 
 
 # FileNo and ObjNo given in 0, 1, 2, 3... to N-1. 
-def PlotLightCurve(Path, EventName , Band , SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' ,FileNo=None, ObjNo=None, ls=None, marker=None, sharex=True, sharey='none', xlim=None, ylim=None): 
+def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' , FileNo=None, ObjNo=None, ls=None, marker=None, sharex=True, sharey='none', Range=[0, 200], xlim=None, ylim=None): 
     """
     asfasfasfdasf.
     """
@@ -56,12 +57,13 @@ def PlotLightCurve(Path, EventName , Band , SeedFile=None, SeedObj=None, Prop='S
 
     PathsDict = GetEventPaths(Path)
     
-    if EventName == '?':
+    if EventName == None:
+        print('Please provide the event name. Available events are:')
         return list(PathsDict.keys())        
 
-    SubPaths = PathsDict[EventName]
+    SubPath = PathsDict[EventName]
         
-    FileNames = os.listdir(SubPaths)
+    FileNames = os.listdir(SubPath)
     FileNames.sort()
     
     Mask = ['HEAD' in FileName for FileName in FileNames]
@@ -88,8 +90,10 @@ def PlotLightCurve(Path, EventName , Band , SeedFile=None, SeedObj=None, Prop='S
     fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo, 4*RowNo,), sharex=sharex, sharey=sharey)
     fig.subplots_adjust(hspace=0, wspace=0)
     
+    axsflat = axs.flatten()
+    
     for II, FNo in enumerate(FileNo):        
-        Data = read_snana_fits(os.path.join(SubPaths,FileNames[FNo*2]),os.path.join(SubPaths,FileNames[FNo*2+1]))
+        Data = read_snana_fits(os.path.join(SubPath,FileNames[FNo*2]),os.path.join(SubPath,FileNames[FNo*2+1]))
         
         if ObjNo is None:
             ObjNo = ObjNoRatio*len(Data)
@@ -99,23 +103,30 @@ def PlotLightCurve(Path, EventName , Band , SeedFile=None, SeedObj=None, Prop='S
             Mask = Data[ONo]['BAND'] == Band
 #             Mask*= Data[ONo]['MJD'] > 53095
             
-            axs[II, JJ].plot(Data[ONo]['MJD'][Mask], Data[ONo][Prop][Mask], ls = ls, marker = marker)
-            axs[II, JJ].text(0.99, 0.99, 'FileNo {}, ObjNo{}'.format(FNo, ONo), ha='right', va='top', transform=axs[II, JJ].transAxes)
+            axsflat[II*ColNo+JJ].plot(Data[ONo]['MJD'][Mask][Range[0]:Range[1]], Data[ONo][Prop][Mask][Range[0]:Range[1]], ls = ls, marker = marker)
+            axsflat[II*ColNo+JJ].text(0.99, 0.99, '({}, {})'.format(II, JJ), ha='right', va='top', transform=axsflat[II*ColNo+JJ].transAxes)
+            axsflat[II*ColNo+JJ].tick_params('y', direction='in', pad=-5)
+            plt.setp(axsflat[II*ColNo+JJ].get_yticklabels(), ha="left")
             
     if xlim != None:
-        sharex = True
-        axs[0,0].set_xlim(xlim)
+        if sharex == True:
+            axsflat[0].set_xlim(xlim)
+        else:
+            for ax in axsflat:
+                ax.set_xlim(xlim)
             
     if ylim != None:
-        sharey = True
-        axs[0,0].set_ylim(ylim)        
-        
-    if Prop == 'SIM_MAGOBS':
-        
         if sharey == True:
-            axs[0,0].invert_yaxis()
+            axsflat[0].set_ylim(ylim)
         else:
-            for ax in axs.flatten():
+            for ax in axsflat:
+                ax.set_ylim(ylim)
+        
+    if Prop == 'SIM_MAGOBS':        
+        if sharey == True:
+            axsflat[0].invert_yaxis()
+        else:
+            for ax in axsflat:
                 ax.invert_yaxis()    
             
     fig.add_subplot(111, frame_on=False)
@@ -123,6 +134,9 @@ def PlotLightCurve(Path, EventName , Band , SeedFile=None, SeedObj=None, Prop='S
 
     plt.xlabel('MJD', fontsize=15 )
     plt.ylabel(Prop, fontsize=15)
+    
+    print('The objects plotted are from FileNo={}, ObjNo={}'.format(list(FileNo), list(ObjNo)))
+    return FileNo, ObjNo
 
 
 #Count the sizes of the HEAD files and PHOT files respectively.
@@ -293,6 +307,9 @@ def GetObsGaps(Path, Band, Events=None, output=0, plot=1):
     
     if Events == None:
         Events = list(PathsDict.keys())
+        
+    if isinstance(Events, str):
+        Events = [Events]
     
     for Event in Events:
 
@@ -337,7 +354,8 @@ def GetObsGaps(Path, Band, Events=None, output=0, plot=1):
 
     GapMean = [np.round(II, 2) for II in GapMean]
     GapStd = [np.round(II, 2) for II in GapStd]
-
+    
+    #Plot
     FigNo = len(Events)
 
     RowNo, ColNo = RowColNo(FigNo)
@@ -348,9 +366,8 @@ def GetObsGaps(Path, Band, Events=None, output=0, plot=1):
     axflat = axs.flatten()
     
     for II in range(FigNo):
-        
-        X = np.arange(len(GapMean[II]))
-        axflat[II].plot(X, GapMean[II])
+
+        axflat[II].plot(GapMean[II])
         axflat[II].text(0.05, 0.95, Events[II], fontsize=10, ha='left', va='top', transform=axflat[II].transAxes)
 
     fig.add_subplot(111, frame_on=False)
@@ -358,6 +375,9 @@ def GetObsGaps(Path, Band, Events=None, output=0, plot=1):
 
     plt.xlabel("Number of observation", fontsize=15)
     plt.ylabel("Observation gaps of band {}(MJD)".format(Band), fontsize=15)
+    
+    if output==1:
+        return GapMean
 
 
       
@@ -568,8 +588,8 @@ def GetTimeRange(Path, Band, Events=None, Prop='MJD', output=0, plot=1):
 #plot the Presto Diagram of a selected event.    
 def PlotPrestoDiagram(Path, EventName, Band1, Band2, dT1, dT2, Thr=30, SamplingInterval=5):
 
-    if dT1 < 0:
-        print('dT1 should be larger than 0!')
+    if dT2 < 0:
+        print('dT2 should be larger than 0!')
         return
 
     fig, ax = plt.subplots(1,1, figsize=[10,5])
@@ -622,21 +642,50 @@ def PlotPrestoDiagram(Path, EventName, Band1, Band2, dT1, dT2, Thr=30, SamplingI
     
     
     
+def CountMag99(Path, EventName):
+
+    PathsDict = GetEventPaths(Path)
+    SubPath = PathsDict[EventName]
     
+    FileNames = os.listdir(SubPath)
+    FileNames.sort()
+
+    Bands = ['u ', 'g ', 'r ', 'i ', 'z ', 'Y ']
+
+    Mag99No = []
+
+    for FileName in FileNames[0:1]:
+
+        Ind = FileName.find('HEAD')
+
+        if Ind > -1:                
+
+            print('|', end='')
+
+            FileNamePHOT = FileName[:Ind] + 'PHOT.FITS.gz'
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+            Data = read_snana_fits(os.path.join(SubPath, FileName), os.path.join(SubPath, FileNamePHOT))
+
+            
+
+            for Obj in Data[0:50]:
+
+                ObjMag99No = []
+                
+                for Band in Bands:
+                    
+                    Mask = Obj['BAND'] == Band
+                    ObjMag99No.append(sum(Obj['SIM_MAGOBS'][Mask] == 99))
+
+                Mag99No.append(ObjMag99No)
+
+#                 if any([ ii!=ObjMag99No[0] for ii in ObjMag99No ]):
+#                     print('Unequal Mag99 found!')
+
+    plt.figure(figsize=[20,10])
+
+    plt.plot(np.array(Mag99No))
+    plt.legend([Band[0] for Band in Bands])
     
     
 def BandInNo(Band):
