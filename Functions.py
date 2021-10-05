@@ -1,4 +1,6 @@
-#V210806
+"""
+V210913
+"""
 
 import os
 import numpy as np
@@ -39,7 +41,7 @@ def ReadData(Path, EventName, FileNo, ObjNo=None):
 
 
 # FileNo and ObjNo given in 0, 1, 2, 3... to N-1. 
-def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' , FileNo=None, ObjNo=None, ls=None, marker=None, sharex=True, sharey='none', Range=[0, 200], xlim=None, ylim=None): 
+def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' , thr=27.5, AlignPeak=True, FigNo=None, FileNo=None, ObjNo=None, ls=None, PlotSizeRatio=1, Space=False, marker=None, sharex=True, sharey='none', Range=[0, 200], xlim=None, ylim=None): 
     """
     asfasfasfdasf.
     """
@@ -59,7 +61,12 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
     
     if EventName == None:
         print('Please provide the event name. Available events are:')
-        return list(PathsDict.keys())        
+        return list(PathsDict.keys())
+    
+                
+    if FigNo == None:
+        FigNo = 25    
+    RowNo, ColNo = RowColNo(FigNo)            
 
     SubPath = PathsDict[EventName]
         
@@ -72,23 +79,29 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
     if FileNo is None:
         if SeedObj is not None:
             np.random.seed(SeedFile)
-        FileNo = np.random.randint(0,TotFileNo-1,5)
+        FileNo = np.random.randint(0,TotFileNo-1,RowNo)
     else:
         if any([II>TotFileNo for II in FileNo]):
-            print('The FileNo excceed the ')     
+            print('The FileNo excceed the limit.')
             
     if ObjNo is None:
         if SeedObj is not None:
             np.random.seed(SeedObj)
-        ObjNoRatio = np.random.rand(5)
+        ObjNoRatio = np.random.rand(ColNo)
         FigNo = len(FileNo) * len(ObjNoRatio)
     else:
         FigNo = len(FileNo) * len(ObjNo)
         
     RowNo, ColNo = RowColNo(FigNo)
-        
-    fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo, 4*RowNo,), sharex=sharex, sharey=sharey)
-    fig.subplots_adjust(hspace=0, wspace=0)
+            
+    if sharex == True:
+        fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo*PlotSizeRatio, 4*RowNo*PlotSizeRatio), sharex=sharex, sharey=sharey)
+        if Space==False:
+            fig.subplots_adjust(hspace=0, wspace=0)
+    else:
+        fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo*PlotSizeRatio, 4.5*RowNo*PlotSizeRatio), sharex=sharex, sharey=sharey)
+        if Space==False:
+            fig.subplots_adjust(wspace=0)
     
     axsflat = axs.flatten()
     
@@ -100,13 +113,27 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
             ObjNo = ObjNo.astype(int)
 
         for JJ, ONo in enumerate(ObjNo):
-            Mask = Data[ONo]['BAND'] == Band
-#             Mask*= Data[ONo]['MJD'] > 53095
             
-            axsflat[II*ColNo+JJ].plot(Data[ONo]['MJD'][Mask][Range[0]:Range[1]], Data[ONo][Prop][Mask][Range[0]:Range[1]], ls = ls, marker = marker)
-            axsflat[II*ColNo+JJ].text(0.99, 0.99, '({}, {})'.format(II, JJ), ha='right', va='top', transform=axsflat[II*ColNo+JJ].transAxes)
-            axsflat[II*ColNo+JJ].tick_params('y', direction='in', pad=-5)
-            plt.setp(axsflat[II*ColNo+JJ].get_yticklabels(), ha="left")
+#             Mask1 = Data[ONo]['SIM_MAGOBS'] < 30
+#             Mask2 = Data[ONo]['SIM_MAGOBS'] > 40
+#             Data[ONo][Prop][ Mask1+Mask2 ] = None
+            
+            Data[ONo][Prop][ Data[ONo]['SIM_MAGOBS']>thr ] = None
+            MaskBand = Data[ONo]['BAND'] == Band
+#             Mask*= Data[ONo]['MJD'] > 53095
+
+            if AlignPeak==True:
+                Ind = np.where( Data[ONo]['SIM_MAGOBS'][MaskBand] == np.nanmin(Data[ONo]['SIM_MAGOBS'][MaskBand]) )[0][0]
+                ZeroDay = Data[ONo]['MJD'][MaskBand][Ind]
+            else: 
+                ZeroDay = min(Data[ONo]['MJD'][MaskBand][Range[0]:Range[1]])
+            
+            axsflat[II*ColNo+JJ].plot(Data[ONo]['MJD'][MaskBand][Range[0]:Range[1]]-ZeroDay, Data[ONo][Prop][MaskBand][Range[0]:Range[1]], ls = ls, marker = marker)
+            axsflat[II*ColNo+JJ].text(0.95, 0.95, '({}, {})'.format(II+1, JJ+1), ha='right', va='top', transform=axsflat[II*ColNo+JJ].transAxes)
+            
+            if Space==False:
+                axsflat[II*ColNo+JJ].tick_params('y', direction='in', pad=-5)
+                plt.setp(axsflat[II*ColNo+JJ].get_yticklabels(), ha="left")
             
     if xlim != None:
         if sharex == True:
@@ -132,11 +159,158 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
     fig.add_subplot(111, frame_on=False)
     plt.tick_params(labelcolor="none", bottom=False, left=False )
 
-    plt.xlabel('MJD', fontsize=15 )
-    plt.ylabel(Prop, fontsize=15)
+    plt.xlabel('Time (days)', fontsize=15, labelpad=15)
+    if Prop == 'SIM_MAGOBS':
+        if Space==True:
+            plt.ylabel('Apparent Magnitude', fontsize=15, labelpad=25)
+        else:
+            plt.ylabel('Apparent Magnitude', fontsize=15)
+    else:
+        if Space==True:
+            plt.ylabel(Prop, fontsize=15, labelpad=20)        
+        else:
+            plt.ylabel(Prop, fontsize=15)
     
+    print('The threshold for the magnitude is {}.'.format(thr))    
     print('The objects plotted are from FileNo={}, ObjNo={}'.format(list(FileNo), list(ObjNo)))
     return FileNo, ObjNo
+
+
+#Calculate Map Function for the "cube"
+def CalculateMap(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2, 
+                 PointsPDay = 50, Thr=27.5, ObjNo=None, SaveData=0, TargetFolder='MapData'):
+    
+    dMag = []
+    Color = []
+    
+    if ObjNo == None:
+        ObjNo = len(Interp_load[Band1])
+
+    for II in range(ObjNo):
+        
+        if Interp_load[Band1][II]==[] or Interp_load[Band2][II]==[]:
+            continue
+        
+        # if II%5000 == 4999:
+        #     print('|')
+        # elif II%50 == 49:
+        #     print('|', end='' )
+
+        TimeRangeStart = max( TimeRange_load[Band1][II][0], TimeRange_load[Band2][II][0] - dT1/1440 )
+        TimeRangeEnd = min( TimeRange_load[Band1][II][1] - dT2/1440, TimeRange_load[Band2][II][1] - dT1/1440 )
+
+        TimeRange = TimeRangeEnd - TimeRangeStart
+        SampleNo = np.int(PointsPDay*TimeRange)
+        
+        XX = np.random.rand(SampleNo)*TimeRange + TimeRangeStart
+
+        Mag1 = Interp_load[Band1][II](XX)
+        Mag2 = Interp_load[Band2][II](XX+dT1/1440)
+        Mag12 = Interp_load[Band1][II](XX+dT2/1440)
+
+        Mask = (Mag1<Thr) * (Mag2<Thr) *(Mag12<Thr)
+
+        dMag.extend(Mag1[Mask] - Mag12[Mask])
+        Color.extend(Mag1[Mask] - Mag2[Mask])
+        
+    data = np.array([dMag, Color])
+    
+    if SaveData == 1:
+    
+        TargetPath = os.path.join(Path0, TargetFolder)                            
+        if not os.path.isdir(TargetPath):
+            os.mkdir(TargetPath)
+        os.chdir(TargetPath)
+
+        Ind1 = PathInterp.rfind('/')
+        Ind2 = PathInterp.rfind('_')
+        
+        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, PointsPDay, Thr, EventName, PathInterp[Ind1+1:Ind2])
+        np.save(FileName, data)
+        
+        print('The data is saved at {} as {}.'.format(TargetPath, FileName))
+        
+    return data
+
+
+
+
+
+#Calculate Map Function for the "cube"
+def CalculateMap1(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2, 
+                 PointsPDay = 50, Thr=27.5, SaveData=0, TargetFolder='MapData'):
+    
+    dMag = np.zeros( np.int(40000*PointsPDay*400) )
+    Color = np.zeros( np.int(40000*PointsPDay*400) )
+    
+    Ind = 0
+
+    for II in range(len(Interp_load[Band1])):
+        
+        if Interp_load[Band1][II]==[] or Interp_load[Band2][II]==[]:
+            continue
+        
+        # if II%5000 == 4999:
+        #     print('|')
+        # elif II%50 == 49:
+        #     print('|', end='' )
+
+        TimeRangeStart = max( TimeRange_load[Band1][II][0], TimeRange_load[Band2][II][0] - dT1/1440 )
+        TimeRangeEnd = min( TimeRange_load[Band1][II][1] - dT2/1440, TimeRange_load[Band2][II][1] - dT1/1440 )
+
+        TimeRange = TimeRangeEnd - TimeRangeStart
+        SampleNo = np.int(PointsPDay*TimeRange)
+        
+        XX = np.random.rand(SampleNo)*TimeRange + TimeRangeStart
+
+        Mag1 = Interp_load[Band1][II](XX)
+        Mag2 = Interp_load[Band2][II](XX+dT1/1440)
+        Mag12 = Interp_load[Band1][II](XX+dT2/1440)
+
+        Mask = (Mag1<Thr) * (Mag2<Thr) *(Mag12<Thr)
+        
+        Length = sum(Mask)
+        
+#         print(Length)
+
+#         try:
+        
+        dMag[Ind: Ind+Length] = Mag1[Mask] - Mag12[Mask]
+        Color[Ind: Ind+Length] = Mag1[Mask] - Mag2[Mask]
+            
+#         except ValueError:
+#             print(Length)
+#             print(II)
+#             print(Mag1[Mask])
+#             print(Mag12[Mask])
+#             print(dMag[Ind: Ind+Length])
+            
+#             return dMag
+        
+        Ind = Ind+Length
+        
+    data = np.array([ dMag[0:Ind], Color[0:Ind] ])
+    
+    if SaveData == 1:
+    
+        TargetPath = os.path.join(Path0, TargetFolder)                            
+        if not os.path.isdir(TargetPath):
+            os.mkdir(TargetPath)
+        os.chdir(TargetPath)
+
+        Ind1 = PathInterp.rfind('/')
+        Ind2 = PathInterp.rfind('_')
+        
+        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, PointsPDay, Thr, EventName, PathInterp[Ind1+1:Ind2])
+        np.save(FileName, data)
+        
+        print('The data is saved at {} as {}.'.format(TargetPath, FileName))
+        
+    return data
+
+
+
+
 
 
 #Count the sizes of the HEAD files and PHOT files respectively.
@@ -265,7 +439,7 @@ def GetObsNum(Path, output=0, plot=1):
         plt.ylabel('Number of Objects')
 
         fig, axs = plt.subplots(6, 1, figsize=(15,15), sharex=True, sharey=True)
-        fig.subplots_adjust(hspace=0)
+#         fig.subplots_adjust(hspace=0)
 
         for II, ax in enumerate(axs.flat):
 
@@ -378,100 +552,72 @@ def GetObsGaps(Path, Band, Events=None, output=0, plot=1):
     
     if output==1:
         return GapMean
-
-
-      
-
-
-
     
     
-# Find out the gaps between observations, convert Data to Array at the beginning. 
-def GetObsGaps2(Path, Band, Events=None, output=0, plot=1):
-
+    
+#Find out the peak magnitudes of the objects of a given class.
+def GetPeakMag(Path, EventName, output=0, plot=1):
+    
     PathsDict = GetEventPaths(Path)
+    Bands = ['u ', 'g ', 'r ', 'i ', 'z ', 'Y ']
     
-    GapMean = []
-    GapStd = []
+    SubPath = PathsDict[EventName]
+    FileNames = os.listdir(SubPath)
     
+    PeakMags = [ [] for _ in range(len(Bands)) ]
+
+    for FileName in FileNames:
+
+        Ind = FileName.find('HEAD')
+
+        if Ind > -1:                
+
+            print('|', end='')
+
+            FileNamePHOT = FileName[:Ind] + 'PHOT.FITS.gz'
+
+            HeadFilePath = os.path.join(SubPath, FileName)
+            PhotFilePath = os.path.join(SubPath, FileNamePHOT)        
+            Data = read_snana_fits(HeadFilePath, PhotFilePath)
+
+
+            for Obj in Data:
+
+                for II, Band in enumerate(Bands):
+
+                    MaskBand = Obj['BAND'] == Band                    
+                    PeakMags[II].append( min(Obj['SIM_MAGOBS'][MaskBand]) )
+                    
+    if plot == 1:
+                                        
+        fig, ax = plt.subplots(1,1, figsize=(15,5))
+                                        
+        ax.boxplot(PeakMags)
+        ax.set_xticklabels([Band[0] for Band in Bands])
+                                        
+        plt.xlabel('Bands')
+        plt.ylabel('Peak Magnitudes')
+        plt.title(EventName)
+
+        fig, axs = plt.subplots(6, 1, figsize=(15,15), sharex=True, sharey=True)
+                                        
+#         fig.subplots_adjust(hspace=0)
+
+        for II, ax in enumerate(axs.flat):
+
+            ax.plot(PeakMags[II])
+            ax.text(0.99, 0.95, 'Band '+Bands[II], transform=ax.transAxes, ha='right', va='top')
             
-    if len(Band) == 1:
-        Band = Band+' '
-        
-    if Band not in ['u ', 'g ', 'r ', 'i ', 'z ', 'Y ']:
-        print('The band input does not exist.')
-        return
-    else:
-        Band = np.bytes_(Band)
-        
-    if Events == None:
-        Events = list(PathsDict.keys())
-    
-    for Event in Events:
+        fig.add_subplot(111, frame_on=False)
+        plt.tick_params(labelcolor="none", bottom=False, left=False )
+                                        
+        plt.ylabel('Peak Magnitudes', fontsize=15)
+        plt.xlabel('Object Count', fontsize=15)
+                   
+        if output == 1:
+            return PeakMags      
 
-        print('Counting {:<25}'.format(Event+':'), end='')
-        start = time.time()
 
-        SubPath = PathsDict[Event]
-        FileNames = os.listdir(SubPath)
-
-        #Start counting one type of events.
-
-        Gaps = []
-
-        for FileName in FileNames:
-
-            Ind = FileName.find('HEAD')
-
-            if Ind > -1:
-
-                print('|', end='')
-
-                FileNamePHOT = FileName[:Ind] + 'PHOT.FITS.gz'
-
-                HeadFilePath = os.path.join(SubPath, FileName)
-                PhotFilePath = os.path.join(SubPath, FileNamePHOT)        
-
-                Data = read_snana_fits(HeadFilePath, PhotFilePath)
-                Data = np.array([np.array(tabl) for tabl in Data])
-                
-                ObjNoInFile = len(Data)
-                
-                Mask = Data['BAND'] == Band
-                DataBandMJD = Data['MJD'][Mask].reshape(ObjNoInFile, -1)
-
-                Gaps.append(DataBandMJD[:, 1:] - DataBandMJD[:, :-1])
-
-        GapsArray = np.array(Gaps).reshape(len(Gaps)*len(Gaps[0]), -1)
-
-        GapMean.append(GapsArray.mean(axis=0))
-        GapStd.append(GapsArray.std(axis=0, ddof=1))
-
-        end = time.time()
-
-        print('\t time spent: {0:6.3f} s'.format(end-start))
-
-    GapMean = [np.round(II, 2) for II in GapMean]
-    GapStd = [np.round(ii, 2) for II in GapStd]
-        
-    FigNo = len(Events)
-
-    RowNo, ColNo = RowColNo(FigNo)
-      
-    fig, axs = plt.subplots( RowNo, ColNo, figsize = (20, 4*RowNo,), sharex=True, sharey=True)
-    fig.subplots_adjust(hspace=0, wspace=0)
-
-    axflat = axs.flatten()
-    
-    for II in range(FigNo):
-        
-        X = np.arange(len(GapMean[II]))
-        axflat[II].plot(X, GapMean[II])
-        axflat[II].text(0.05, 0.95, Events[II], fontsize=10, ha='left', va='top', transform=axflat[II].transAxes)
-
-    fig.add_subplot(111, frame_on=False)
-    plt.tick_params(labelcolor="none", bottom=False, left=False )
-    
     
 #Find the range in time of the objects.
 def GetTimeRange(Path, Band, Events=None, Prop='MJD', output=0, plot=1):
@@ -558,87 +704,9 @@ def GetTimeRange(Path, Band, Events=None, Prop='MJD', output=0, plot=1):
         plt.xlabel('Event Names')
         plt.ylabel('Start and End Time')
 
-    # GapMean = [np.round(II, 2) for II in GapMean]
-    # GapStd = [np.round(II, 2) for II in GapStd]
-
-    # FigNo = len(Events)
-
-    # RowNo, ColNo = RowColNo(FigNo)
-      
-    # fig, axs = plt.subplots( RowNo, ColNo, figsize = (20, 4*RowNo,), sharex=True, sharey=True)
-    # fig.subplots_adjust(hspace=0, wspace=0)
-
-    # axflat = axs.flatten()
-    
-    # for II in range(FigNo):
-
-    #     axflat[II].plot(X, GapMean[II])
-    #     axflat[II].text(0.05, 0.95, Events[II], fontsize=10, ha='left', va='top', transform=axflat[II].transAxes)
-
-    # fig.add_subplot(111, frame_on=False)
-    # plt.tick_params(labelcolor="none", bottom=False, left=False )
-
-    # plt.xlabel("Number of observation", fontsize=15)
-    # plt.ylabel("Observation gaps of band {}(MJD)".format(Band), fontsize=15)
     
     if output == 1:
         return StartMean, StartStd, EndMean, EndStd
-    
-    
-#plot the Presto Diagram of a selected event.    
-def PlotPrestoDiagram(Path, EventName, Band1, Band2, dT1, dT2, Thr=30, SamplingInterval=5):
-
-    if dT2 < 0:
-        print('dT2 should be larger than 0!')
-        return
-
-    fig, ax = plt.subplots(1,1, figsize=[10,5])
-    ax.set_xlabel("$\Delta {0}$".format(Band1), fontsize=10)
-    ax.set_ylabel('${0}-{1}$'.format(Band1,Band2), fontsize=10)
-
-    dT1P = int(dT1 / SamplingInterval) #The difference of time in points of data. 
-    dT2P = int(dT2 / SamplingInterval)
-
-    Band1 = BandInNo(Band1) #Convert band letters to numbers, 'u'=1, 'g'=2, and so on
-    Band2 = BandInNo(Band2)
-
-    DataNum = np.load(os.path.join(Path, EventName+'_Num.npy'))
-
-    for Obj in DataNum:
-
-        Mask = Obj[Band1] < Thr
-        Ind = np.where(Mask)[0]
-        if len(Ind) == 0:
-            continue
-        Mask1 = np.zeros_like(Mask)
-#         print(Obj[Band1])
-#         print(Ind)
-    
-        Mask1[Ind[0]: Ind[-1] - dT1P] = True
-
-        Mask = Obj[Band2] < Thr
-        Ind = np.where(Mask)[0]
-#         print(Mask)
-        if len(Ind) == 0:
-            continue        
-        Mask2 = np.zeros_like(Mask)
-        Mask2[Ind[0]: Ind[-1]] = True
-        
-        Mask1Trans2 = np.hstack( (Mask1[-dT2P:], Mask1[:-dT2P]) )
-        Mask1Trans2 = Mask1Trans2 & Mask2
-        Mask1 = np.hstack( (Mask1Trans2[dT2P:], Mask1Trans2[:dT2P]) )
-
-        Mask1Trans1 = np.hstack( (Mask1[-dT1P:], Mask1[:-dT1P]) )
-
-        dMag = Obj[Band1][Mask1] - Obj[Band1][Mask1Trans1]
-        Color = Obj[Band1][Mask1] - Obj[Band2][Mask1Trans2]
-
-        ax.plot(dMag, Color, '.', color='b')
-
-    
-    
-    
-    
     
     
     
@@ -689,9 +757,17 @@ def CountMag99(Path, EventName):
     
     
 def BandInNo(Band):
-    BandDict = {'u': 0, 'g': 1, 'r': 2, 'i': 3, 'z': 4, 'Y': 5}
-    return BandDict[Band]    
+    Bands = ['u', 'g', 'r', 'i', 'z', 'Y']
     
+    try:
+        Ind = Bands.index(Band)
+        return Ind
+    
+    except ValueError:
+        print('Wrong bands input! The available bands are:\n{}'.format(Bands))
+        
+
+        
     
 # Return the row and column numbers of a subplot according to the number of the plots.
 def RowColNo(FigNo):
