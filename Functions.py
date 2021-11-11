@@ -1,5 +1,5 @@
 """
-V211003
+V211103
 """
 
 import os
@@ -41,7 +41,9 @@ def ReadData(Path, EventName, FileNo, ObjNo=None):
 
 
 # FileNo and ObjNo given in 0, 1, 2, 3... to N-1. 
-def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' , thr=27.5, AlignPeak=True, FigNo=None, FileNo=None, ObjNo=None, ls=None, PlotSizeRatio=1, Space=False, marker=None, sharex=True, sharey='none', Range=[0, 200], xlim=None, ylim=None): 
+def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop='SIM_MAGOBS' , thr=27.5, 
+                   AlignPeak=True,FigNo=None, FileNo=None, ObjNo=None, ls=None, PlotSizeRatio=1, Space=False, 
+                   marker=None, sharex=True, sharey='none', Range=[0, 200], Shadow=None, xlim=None, ylim=None): 
     """
     asfasfasfdasf.
     """
@@ -77,16 +79,14 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
     TotFileNo = sum(Mask)
     
     if FileNo is None:
-        if SeedObj is not None:
-            np.random.seed(SeedFile)
+        np.random.seed(SeedFile)
         FileNo = np.random.randint(0,TotFileNo-1,RowNo)
     else:
         if any([II>TotFileNo for II in FileNo]):
             print('The FileNo excceed the limit.')
             
     if ObjNo is None:
-        if SeedObj is not None:
-            np.random.seed(SeedObj)
+        np.random.seed(SeedObj)
         ObjNoRatio = np.random.rand(ColNo)
         FigNo = len(FileNo) * len(ObjNoRatio)
     else:
@@ -95,18 +95,23 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
     RowNo, ColNo = RowColNo(FigNo)
             
     if sharex == True:
-        fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo*PlotSizeRatio, 4*RowNo*PlotSizeRatio), sharex=sharex, sharey=sharey)
+        fig, axs = plt.subplots(RowNo, ColNo, 
+                                figsize = (6*ColNo*PlotSizeRatio, 4*RowNo*PlotSizeRatio), 
+                                sharex=sharex, sharey=sharey)
         if Space==False:
             fig.subplots_adjust(hspace=0, wspace=0)
     else:
-        fig, axs = plt.subplots( RowNo, ColNo, figsize = (6*ColNo*PlotSizeRatio, 4.5*RowNo*PlotSizeRatio), sharex=sharex, sharey=sharey)
+        fig, axs = plt.subplots( RowNo, ColNo, 
+                                figsize = (6*ColNo*PlotSizeRatio, 4.5*RowNo*PlotSizeRatio), 
+                                sharex=sharex, sharey=sharey)
         if Space==False:
             fig.subplots_adjust(wspace=0)
     
     axsflat = axs.flatten()
     
     for II, FNo in enumerate(FileNo):        
-        Data = read_snana_fits(os.path.join(SubPath,FileNames[FNo*2]),os.path.join(SubPath,FileNames[FNo*2+1]))
+        Data = read_snana_fits(os.path.join(SubPath,FileNames[FNo*2]),
+                               os.path.join(SubPath,FileNames[FNo*2+1]))
         
         if ObjNo is None:
             ObjNo = ObjNoRatio*len(Data)
@@ -128,12 +133,23 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
             else: 
                 ZeroDay = min(Data[ONo]['MJD'][MaskBand][Range[0]:Range[1]])
             
-            axsflat[II*ColNo+JJ].plot(Data[ONo]['MJD'][MaskBand][Range[0]:Range[1]]-ZeroDay, Data[ONo][Prop][MaskBand][Range[0]:Range[1]], ls = ls, marker = marker)
-            axsflat[II*ColNo+JJ].text(0.95, 0.95, '({}, {})'.format(II+1, JJ+1), ha='right', va='top', transform=axsflat[II*ColNo+JJ].transAxes)
+            axsflat[II*ColNo+JJ].plot(Data[ONo]['MJD'][MaskBand][Range[0]:Range[1]]-ZeroDay, 
+                                      Data[ONo][Prop][MaskBand][Range[0]:Range[1]], ls = ls, marker = marker)
+            axsflat[II*ColNo+JJ].text(0.95, 0.95, '({}, {})'.format(II+1, JJ+1), 
+                                      ha='right', va='top', transform=axsflat[II*ColNo+JJ].transAxes)
             
             if Space==False:
                 axsflat[II*ColNo+JJ].tick_params('y', direction='in', pad=-5)
                 plt.setp(axsflat[II*ColNo+JJ].get_yticklabels(), ha="left")
+                
+            if Shadow!=None:
+                
+                Xlim = axsflat[II*ColNo+JJ].get_xlim()
+                Ylim = axsflat[II*ColNo+JJ].get_ylim()
+                axsflat[II*ColNo+JJ].fill_between(Xlim, np.ones_like(Xlim)*Shadow, 
+                                                  np.ones_like(Xlim)*Ylim[1], color=(0,0,0,0.1))
+                axsflat[II*ColNo+JJ].set_xlim(Xlim)
+                axsflat[II*ColNo+JJ].set_ylim(Ylim)
             
     if xlim != None:
         if sharex == True:
@@ -178,6 +194,77 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
 
 #Calculate Map Function for the "cube"
 def CalculateMap(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2, 
+                 PointsPDay = 50, Thrs=None, ObjNo=None, SeedObj=None, SaveData=0, TargetFolder='MapData'):
+    
+    dMag = []
+    Color = []
+    
+    if Thrs == None:
+        Thrs = {'u': 23.9, 'g': 25.0, 'r': 24.7, 'i': 24.0, 'z': 23.3, 'Y': 22.1}
+        
+    TotalObjNo = len(Interp_load[Band1])
+    
+    if ObjNo == None:
+        ObjInd = range(TotalObjNo)
+    elif ObjNo < 0.1*TotalObjNo:
+        np.random.seed(SeedObj)
+        ObjInd = np.random.randint(0, TotalObjNo, size=ObjNo)
+    elif ObjNo > TotalObjNo:
+        raise ValueError('The No of Objects excceeds limit. The total No is {}'.format(TotalObjNo))
+    else:
+        ObjInd = range(ObjNo)                                   
+
+    for II in ObjInd:
+        
+        if Interp_load[Band1][II]==[] or Interp_load[Band2][II]==[]:
+            continue
+        
+        # if II%5000 == 4999:
+        #     print('|')
+        # elif II%50 == 49:
+        #     print('|', end='' )
+
+        TimeRangeStart = max( TimeRange_load[Band1][II][0], TimeRange_load[Band2][II][0] - dT1/1440 )
+        TimeRangeEnd = min( TimeRange_load[Band1][II][1] - dT2/1440, TimeRange_load[Band2][II][1] - dT1/1440 )
+
+        TimeRange = TimeRangeEnd - TimeRangeStart
+        SampleNo = np.int(PointsPDay*TimeRange)
+        
+        XX = np.random.rand(SampleNo)*TimeRange + TimeRangeStart
+
+        Mag1 = Interp_load[Band1][II](XX)
+        Mag2 = Interp_load[Band2][II](XX+dT1/1440)
+        Mag12 = Interp_load[Band1][II](XX+dT2/1440)
+
+        Mask = (Mag1<Thrs[Band1]) * (Mag2<Thrs[Band2]) *(Mag12<Thrs[Band1])
+
+        dMag.extend(Mag1[Mask] - Mag12[Mask])
+        Color.extend(Mag1[Mask] - Mag2[Mask])
+        
+    data = np.array([dMag, Color])
+    
+    if SaveData == 1:
+    
+        TargetPath = os.path.join(Path0, TargetFolder)                            
+        if not os.path.isdir(TargetPath):
+            os.mkdir(TargetPath)
+        os.chdir(TargetPath)
+
+        Ind1 = PathInterp.rfind('/')
+        Ind2 = PathInterp.rfind('_')
+        
+        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, 
+                                                                            PointsPDay, Thr, EventName, 
+                                                                            PathInterp[Ind1+1:Ind2])
+        np.save(FileName, data)
+        
+        print('The data is saved at {} as {}.'.format(TargetPath, FileName))
+        
+    return data
+
+
+#Calculate Map Function for the "cube"
+def CalculateMap1(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2, 
                  PointsPDay = 50, Thr=27.5, ObjNo=None, SaveData=0, TargetFolder='MapData'):
     
     dMag = []
@@ -225,91 +312,14 @@ def CalculateMap(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2,
         Ind1 = PathInterp.rfind('/')
         Ind2 = PathInterp.rfind('_')
         
-        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, PointsPDay, Thr, EventName, PathInterp[Ind1+1:Ind2])
+        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, 
+                                                                            PointsPDay, Thr, EventName, 
+                                                                            PathInterp[Ind1+1:Ind2])
         np.save(FileName, data)
         
         print('The data is saved at {} as {}.'.format(TargetPath, FileName))
         
     return data
-
-
-
-
-
-#Calculate Map Function for the "cube"
-def CalculateMap1(Interp_load, TimeRange_load, Band1, Band2, dT1, dT2, 
-                 PointsPDay = 50, Thr=27.5, SaveData=0, TargetFolder='MapData'):
-    
-    dMag = np.zeros( np.int(40000*PointsPDay*400) )
-    Color = np.zeros( np.int(40000*PointsPDay*400) )
-    
-    Ind = 0
-
-    for II in range(len(Interp_load[Band1])):
-        
-        if Interp_load[Band1][II]==[] or Interp_load[Band2][II]==[]:
-            continue
-        
-        # if II%5000 == 4999:
-        #     print('|')
-        # elif II%50 == 49:
-        #     print('|', end='' )
-
-        TimeRangeStart = max( TimeRange_load[Band1][II][0], TimeRange_load[Band2][II][0] - dT1/1440 )
-        TimeRangeEnd = min( TimeRange_load[Band1][II][1] - dT2/1440, TimeRange_load[Band2][II][1] - dT1/1440 )
-
-        TimeRange = TimeRangeEnd - TimeRangeStart
-        SampleNo = np.int(PointsPDay*TimeRange)
-        
-        XX = np.random.rand(SampleNo)*TimeRange + TimeRangeStart
-
-        Mag1 = Interp_load[Band1][II](XX)
-        Mag2 = Interp_load[Band2][II](XX+dT1/1440)
-        Mag12 = Interp_load[Band1][II](XX+dT2/1440)
-
-        Mask = (Mag1<Thr) * (Mag2<Thr) *(Mag12<Thr)
-        
-        Length = sum(Mask)
-        
-#         print(Length)
-
-#         try:
-        
-        dMag[Ind: Ind+Length] = Mag1[Mask] - Mag12[Mask]
-        Color[Ind: Ind+Length] = Mag1[Mask] - Mag2[Mask]
-            
-#         except ValueError:
-#             print(Length)
-#             print(II)
-#             print(Mag1[Mask])
-#             print(Mag12[Mask])
-#             print(dMag[Ind: Ind+Length])
-            
-#             return dMag
-        
-        Ind = Ind+Length
-        
-    data = np.array([ dMag[0:Ind], Color[0:Ind] ])
-    
-    if SaveData == 1:
-    
-        TargetPath = os.path.join(Path0, TargetFolder)                            
-        if not os.path.isdir(TargetPath):
-            os.mkdir(TargetPath)
-        os.chdir(TargetPath)
-
-        Ind1 = PathInterp.rfind('/')
-        Ind2 = PathInterp.rfind('_')
-        
-        FileName = '{}{}_dT1_{}_dT2_{}_PPD{}_Thr{}_{}_Source_{}.npy'.format(Band1, Band2, dT1, dT2, PointsPDay, Thr, EventName, PathInterp[Ind1+1:Ind2])
-        np.save(FileName, data)
-        
-        print('The data is saved at {} as {}.'.format(TargetPath, FileName))
-        
-    return data
-
-
-
 
 
 
@@ -765,8 +775,6 @@ def BandInNo(Band):
     
     except ValueError:
         print('Wrong bands input! The available bands are:\n{}'.format(Bands))
-        
-
         
     
 # Return the row and column numbers of a subplot according to the number of the plots.

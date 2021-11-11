@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 import time
 from scipy import interpolate
@@ -8,17 +7,19 @@ import pickle
 
 import Functions
 
-###
-Path0 = '/global/homes/l/lianming/data/'
-Path1 = '/global/homes/l/lianming/data/Test_Interp'
-Path2 = '/global/homes/l/lianming/data/2Day_Interp'
+Path0 = '/global/homes/l/lianming/Presto-Color-2/data'
+Path1 = '/global/homes/l/lianming/Presto-Color-2/data/Test_Interp'
+Path2 = '/global/homes/l/lianming/Presto-Color-2/data/2Day_Interp'
 
 PathInterp = Path2
 
-EventNames = np.load(os.path.join(PathInterp, 'EventName.npy'))
-EventNames = [ 'SNIa-SALT2', 'SNIax', 'EB']
+####### Parameter setting
 
-PointsPerday = 0.1
+# EventNames = np.load(os.path.join(PathInterp, 'EventName.npy'))
+EventNames = [ 'SNIa-SALT2']
+
+PointsPerDay = 0.1
+ObjNo = 10000
 
 #Coordinates
 
@@ -29,7 +30,7 @@ InfoDict['Bands'] = ['g', 'i']
 # InfoDict['dT1s'] = np.arange(0, 241, 15)
 # InfoDict['dT2s'] =  np.arange(120, 481, 15)
 InfoDict['dT1s'] = np.arange(0, 31, 15)
-InfoDict['dT2s'] =  np.arange(120, 151, 15)
+InfoDict['dT2s'] =  np.arange(30, 61, 15)
 
 InfoDict['BinMag'] = np.arange(-1.25, 3.84, 0.1)
 InfoDict['BinColor'] = np.arange(-9.25, 9.8, 0.5)
@@ -58,7 +59,7 @@ for EventName in EventNames:
                     for ll, dT2 in enumerate(InfoDict['dT2s']):
 
                         data = Functions.CalculateMap(Interp_load, TimeRange_load, 
-                                     Band1, Band2, dT1, dT2, PointsPDay=PointsPerday);
+                                     Band1, Band2, dT1, dT2, PointsPDay=PointsPerDay, ObjNo=ObjNo);
 
                         histdata,_,_ = np.histogram2d(data[0], data[1], bins=[InfoDict['BinMag'], InfoDict['BinColor']])
 
@@ -86,12 +87,15 @@ print( 'The range of Color is [{}, {}].'.format( min(ColorRange[0]), max(ColorRa
 print( '{} min spent.'.format( (time.time() - time1)/60 ))
 
 ############
+# FolderPath = '/global/cscratch1/sd/lianming/Results'
+FolderPath = '/global/homes/l/lianming/Presto-Color-2/data'
+
 timestring = time.ctime()
 Len = len(EventNames)
 FileName = '_'.join(['ProbabilityCube', timestring[4:7]+timestring[8:10], timestring[11:16],
                      ','.join( [ EventNames[ii] for ii in range(Len) if ii <3 ] + ['and_{}_more'.format(Len-3) for _ in range(1) if Len>3]  ) ] )
 
-FilePath = os.path.join(Path0, FileName+'.pkl')
+FilePath = os.path.join(FolderPath, FileName+'.pkl')
 FilePath0 = FilePath
 
 ii = 1
