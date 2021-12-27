@@ -1,4 +1,4 @@
-#!/bin/bash
+t#!/bin/bash
 #SBATCH -N 5
 #SBATCH -C haswell
 #SBATCH -q regular

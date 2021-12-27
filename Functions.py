@@ -1,5 +1,5 @@
 """
-V211103
+V211215
 """
 
 import os
@@ -96,8 +96,9 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
             
     if sharex == True:
         fig, axs = plt.subplots(RowNo, ColNo, 
-                                figsize = (6*ColNo*PlotSizeRatio, 4*RowNo*PlotSizeRatio), 
-                                sharex=sharex, sharey=sharey)
+                                figsize = (6*ColNo*PlotSizeRatio, 3*RowNo*PlotSizeRatio), 
+                                sharex=sharex, sharey=sharey)        
+        fig.subplots_adjust(hspace=0.05)
         if Space==False:
             fig.subplots_adjust(hspace=0, wspace=0)
     else:
@@ -125,7 +126,9 @@ def PlotLightCurve(Path, Band, EventName=None, SeedFile=None, SeedObj=None, Prop
             
             Data[ONo][Prop][ Data[ONo]['SIM_MAGOBS']>thr ] = None
             MaskBand = Data[ONo]['BAND'] == Band
-#             Mask*= Data[ONo]['MJD'] > 53095
+
+            # while np.nanmax(Data[ONo]['SIM_MAGOBS'][MaskBand])-np.nanmin(Data[ONo]['SIM_MAGOBS'][MaskBand]) < 1:
+            #     ONo += 1        
 
             if AlignPeak==True:
                 Ind = np.where( Data[ONo]['SIM_MAGOBS'][MaskBand] == np.nanmin(Data[ONo]['SIM_MAGOBS'][MaskBand]) )[0][0]

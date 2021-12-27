@@ -19,7 +19,7 @@ PathInterp = Path2
 EventNames = [ 'SNIa-SALT2']
 
 PointsPerDay = 0.1
-ObjNo = 10000
+ObjNo = 1000
 
 #Coordinates
 
