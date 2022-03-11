@@ -24,8 +24,6 @@ ObjNo = 1000
 #Coordinates
 
 InfoDict = {}
-
-#test test test
 InfoDict['EventNames'] = EventNames
 # InfoDict['Bands'] = ['u', 'g', 'r', 'i', 'z', 'Y']
 InfoDict['Bands'] = ['g', 'i']
