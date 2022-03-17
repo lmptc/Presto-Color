@@ -1,5 +1,5 @@
 """
-V211215
+V220317
 """
 
 import os
@@ -10,6 +10,10 @@ from astropy.io import fits
 from astropy.table import Table
 from collections import OrderedDict as odict
 import time
+
+def TestFunc(a, b):
+    print('just for test!')
+    return a**b
 
 #Get the name of events as a dictionary, the event names are sorted. 
 def GetEventPaths(Path):
