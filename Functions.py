@@ -13,7 +13,7 @@ import time
 
 def TestFunc(a, b):
     print('just for test!')
-    return a**b
+    return a/b
 
 #Get the name of events as a dictionary, the event names are sorted. 
 def GetEventPaths(Path):
